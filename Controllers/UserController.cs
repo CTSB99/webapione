@@ -49,10 +49,12 @@ namespace webapione.Controllers
         [HttpPost("CreateUser")] 
         public async Task<ActionResult<List<User>>> CreateUser(UserDto request)
         {
-            /*
+            CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
+
             try
             {
-                if (_context.Users.Any(x => x.UserName == user.UserName))
+                /*
+                if (_context.Users.Any(x => x.UserName == request.UserName))
                     return BadRequest("Username already taken");
 
                 if(InvalidInput(user.FirstName) || InvalidInput(user.LastName) || InvalidInput(user.UserName))
@@ -61,44 +63,48 @@ namespace webapione.Controllers
                 if (!ValidPassword(user.Password))
                     return BadRequest("Password invalid: Password has to be => 8 and <= 32 characters and contain atleast 1 special character");
 
+                */
+
+                user.FirstName = request.FirstName;
+                user.LastName = request.LastName;
+                user.UserName = request.UserName;
+                user.Password = request.Password;
+                user.PasswordHash = passwordHash;
+                user.PasswordSalt = passwordSalt;
+
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
-
-                return await ReadUser(user.Id);
+                return Ok(user);
             }
             catch(Exception ex)
             {
                 return BadRequest(ex.Message);
             }
-            */
 
-            CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
-
-            user.UserName = request.Username;
-            user.PasswordHash = passwordHash;
-            user.PasswordSalt = passwordSalt;
-
-            return Ok(user);
         }
 
         [HttpPost("login")]
         public async Task<ActionResult<string>> Login(UserDto request)
         {
-            if (user.UserName != request.Username)
+
+            var searchedUser = _context.Users.Where(x => x.UserName == request.UserName).Single();
+
+            Console.WriteLine("\n\n\n\n\n HIER IST DER SEARCHED USER: " + searchedUser + "\n\n\n\n\n\n");
+            if (searchedUser.UserName != request.UserName)
             {
                 return BadRequest("User not found.");
             }
 
-            if(!VerifyPasswordHash(request.Password, user.PasswordHash, user.PasswordSalt))
+            if(!VerifyPasswordHash(request.Password, searchedUser.PasswordHash, searchedUser.PasswordSalt))
             {
                 return BadRequest("Wrong Password.");
             }
 
-            string token = CreateToken(user);
+            string token = CreateToken(searchedUser);
 
             return Ok(token);
         }
-
+        
         private void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
         {
             using (var hmac = new HMACSHA512())
@@ -121,7 +127,7 @@ namespace webapione.Controllers
         {
             List<Claim> claims = new()
             {
-                new Claim(ClaimTypes.Name, user.UserName)
+                new Claim(ClaimTypes.Name, user.FirstName, user.LastName, user.UserName)
             };
 
             var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(
@@ -140,19 +146,13 @@ namespace webapione.Controllers
         }
 
         [HttpGet("ReadUser")]
-        public async Task<ActionResult<List<User>>> ReadUser(int id)
+        public async Task<ActionResult<User>> ReadUser(int id)
         {
             try
             {
-                var result = await _context.Users.Where(x => x.Id == id).ToListAsync();
+                var result = _context.Users.Where(x => x.Id == id).Single();
 
-                return result.Count switch
-                {
-                    0 => (ActionResult<List<User>>)BadRequest("User does not exist"),
-                    1 => (ActionResult<List<User>>)Ok(result[0]),
-                    _ => (ActionResult<List<User>>)BadRequest("Unknown error"),
-                };
-
+                return result;
             }
             catch (Exception ex)
             {
@@ -168,7 +168,7 @@ namespace webapione.Controllers
         }
 
         [HttpPut("UpdateUser")]
-        public async Task<ActionResult<List<User>>> UpdateUser(User user)
+        public async Task<ActionResult<User>> UpdateUser(User user)
         {
             try
             {
@@ -194,7 +194,7 @@ namespace webapione.Controllers
         }
         
         [HttpDelete("DeleteUser")]
-        public async Task<ActionResult<List<User>>> DeleteUser(int id)
+        public async Task<ActionResult<User>> DeleteUser(int id)
         {
             try
             {
