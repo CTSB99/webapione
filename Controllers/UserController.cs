@@ -1,5 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using webapione.DBContext;
 using webapione.Models;
@@ -24,10 +28,13 @@ namespace webapione.Controllers
         }
 
         private readonly UserContext _context;
+        private IConfiguration _configuration;
 
-        public UserController(UserContext context)
+
+        public UserController(UserContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
 
         static bool InvalidInput(string? input)
@@ -35,11 +42,14 @@ namespace webapione.Controllers
             return input == "string" || input == "";
         }
 
+        public static User user = new User();
+
         //funktioniert aber sieht scheiße aus, aufklappen auf eigene gefahr
 
         [HttpPost("CreateUser")] 
-        public async Task<ActionResult<List<User>>> CreateUser(User user)
+        public async Task<ActionResult<List<User>>> CreateUser(UserDto request)
         {
+            /*
             try
             {
                 if (_context.Users.Any(x => x.UserName == user.UserName))
@@ -60,6 +70,73 @@ namespace webapione.Controllers
             {
                 return BadRequest(ex.Message);
             }
+            */
+
+            CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
+
+            user.UserName = request.Username;
+            user.PasswordHash = passwordHash;
+            user.PasswordSalt = passwordSalt;
+
+            return Ok(user);
+        }
+
+        [HttpPost("login")]
+        public async Task<ActionResult<string>> Login(UserDto request)
+        {
+            if (user.UserName != request.Username)
+            {
+                return BadRequest("User not found.");
+            }
+
+            if(!VerifyPasswordHash(request.Password, user.PasswordHash, user.PasswordSalt))
+            {
+                return BadRequest("Wrong Password.");
+            }
+
+            string token = CreateToken(user);
+
+            return Ok(token);
+        }
+
+        private void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
+        {
+            using (var hmac = new HMACSHA512())
+            {
+                passwordSalt = hmac.Key;
+                passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+            }
+        }
+
+        private bool VerifyPasswordHash(string password, byte[] passwordHash, byte[] passwordSalt)
+        {
+            using (var hmac = new HMACSHA512(passwordSalt))
+            {
+                var computecHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+                return computecHash.SequenceEqual(passwordHash);
+            }
+        }
+
+        private string CreateToken(User user)
+        {
+            List<Claim> claims = new()
+            {
+                new Claim(ClaimTypes.Name, user.UserName)
+            };
+
+            var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(
+                _configuration.GetSection("AppSettings:Token").Value));
+
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
+
+            var token = new JwtSecurityToken(
+                claims: claims,
+                expires: DateTime.Now.AddDays(1),
+                signingCredentials: creds);
+
+            var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+
+            return jwt;
         }
 
         [HttpGet("ReadUser")]
@@ -95,20 +172,20 @@ namespace webapione.Controllers
         {
             try
             {
-                var result = await _context.Users.Where(x => x.Id == user.Id).ToListAsync();
+                var result = _context.Users.Where(x => x.Id == user.Id).Single();
 
-                result[0].FirstName = InvalidInput(user.FirstName) == true ? result[0].FirstName : user.FirstName;
-                result[0].LastName = InvalidInput(user.LastName) == true ? result[0].LastName : user.LastName;
-                result[0].UserName = InvalidInput(user.UserName) == true ? result[0].UserName : user.UserName;
-                result[0].Password = InvalidInput(user.Password) == true ? result[0].Password : user.Password;
+                result.FirstName = InvalidInput(user.FirstName) == true ? result.FirstName : user.FirstName;
+                result.LastName = InvalidInput(user.LastName) == true ? result.LastName : user.LastName;
+                result.UserName = InvalidInput(user.UserName) == true ? result.UserName : user.UserName;
+                result.Password = InvalidInput(user.Password) == true ? result.Password : user.Password;
 
-                if (!(_context.Users.Any(x => x.Id == user.Id) && ValidPassword(result[0].Password)))
+                if (!(_context.Users.Any(x => x.Id == user.Id) && ValidPassword(result.Password)))
                     return BadRequest("Überprüfe deine Angaben nochmal du Opfer");
 
-                _context.Update(result[0]);
+                _context.Update(result);
                 await _context.SaveChangesAsync();
 
-                return await ReadUser(result[0].Id);
+                return await ReadUser(result.Id);
             }
             catch (Exception ex)
             {
