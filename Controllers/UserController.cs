@@ -53,17 +53,14 @@ namespace webapione.Controllers
 
             try
             {
-                /*
                 if (_context.Users.Any(x => x.UserName == request.UserName))
                     return BadRequest("Username already taken");
 
-                if(InvalidInput(user.FirstName) || InvalidInput(user.LastName) || InvalidInput(user.UserName))
+                if(InvalidInput(request.FirstName) || InvalidInput(request.LastName) || InvalidInput(request.UserName))
                     return BadRequest("Please fill in all the required Data");
 
-                if (!ValidPassword(user.Password))
+                if (!ValidPassword(request.Password))
                     return BadRequest("Password invalid: Password has to be => 8 and <= 32 characters and contain atleast 1 special character");
-
-                */
 
                 user.FirstName = request.FirstName;
                 user.LastName = request.LastName;
@@ -86,25 +83,31 @@ namespace webapione.Controllers
         [HttpPost("login")]
         public async Task<ActionResult<string>> Login(UserDto request)
         {
-
-            var searchedUser = _context.Users.Where(x => x.UserName == request.UserName).Single();
-
-            Console.WriteLine("\n\n\n\n\n HIER IST DER SEARCHED USER: " + searchedUser + "\n\n\n\n\n\n");
-            if (searchedUser.UserName != request.UserName)
+            try
             {
-                return BadRequest("User not found.");
+                var searchedUser = _context.Users.Where(x => x.UserName == request.UserName).Single();
+
+                if (searchedUser.UserName != request.UserName || searchedUser == null)
+                {
+                    return BadRequest("User not found.");
+                }
+
+                if(!VerifyPasswordHash(request.Password, searchedUser.PasswordHash, searchedUser.PasswordSalt))
+                {
+                    return BadRequest("Wrong Password.");
+                }
+                
+                string token = CreateToken(searchedUser);
+
+                return Ok(token);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
             }
 
-            if(!VerifyPasswordHash(request.Password, searchedUser.PasswordHash, searchedUser.PasswordSalt))
-            {
-                return BadRequest("Wrong Password.");
-            }
-
-            string token = CreateToken(searchedUser);
-
-            return Ok(token);
         }
-        
+
         private void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
         {
             using (var hmac = new HMACSHA512())
@@ -127,7 +130,8 @@ namespace webapione.Controllers
         {
             List<Claim> claims = new()
             {
-                new Claim(ClaimTypes.Name, user.FirstName, user.LastName, user.UserName)
+                new Claim(ClaimTypes.Name, user.UserName),
+                new Claim(ClaimTypes.GivenName, $"{user.FirstName} {user.LastName}")
             };
 
             var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(
@@ -237,5 +241,4 @@ namespace webapione.Controllers
 Todo:
 - Validation IsEmpty
 - API security (Json Net token, allg Token Systeme)
-- Einbindung
 */
