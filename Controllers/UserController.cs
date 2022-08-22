@@ -30,7 +30,7 @@ namespace webapione.Controllers
         private readonly UserContext _context;
         private IConfiguration _configuration;
 
-
+        
         public UserController(UserContext context, IConfiguration configuration)
         {
             _context = context;
@@ -47,8 +47,9 @@ namespace webapione.Controllers
         //funktioniert aber sieht scheiße aus, aufklappen auf eigene gefahr
 
         [HttpPost("CreateUser")] 
-        public async Task<ActionResult<List<User>>> CreateUser(UserDto request)
+        public async Task<ActionResult<User>> CreateUser(UserDto request)
         {
+            Console.WriteLine($"This is the User Dto{request}");
             CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
 
             try
@@ -60,8 +61,9 @@ namespace webapione.Controllers
                     return BadRequest("Please fill in all the required Data");
 
                 if (!ValidPassword(request.Password))
-                    return BadRequest("Password invalid: Password has to be => 8 and <= 32 characters and contain atleast 1 special character");
+                    return BadRequest($"Password invalid: Password has to be => 8 and <= 32 characters and contain atleast 1 special character. Current Password: {request.Password}");
 
+                user.Id = request.Id;
                 user.FirstName = request.FirstName;
                 user.LastName = request.LastName;
                 user.UserName = request.UserName;
@@ -69,13 +71,14 @@ namespace webapione.Controllers
                 user.PasswordHash = passwordHash;
                 user.PasswordSalt = passwordSalt;
 
+                Console.WriteLine($"This is the User from UserController: \n {user.Id}\n{user.FirstName}\n{user.LastName}\n{user.UserName}\n{user.Password}");
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
                 return Ok(user);
             }
             catch(Exception ex)
             {
-                return BadRequest(ex.Message);
+                return BadRequest(ex.Message + "Bad Request weil lol");
             }
 
         }
