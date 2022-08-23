@@ -15,7 +15,15 @@ namespace webapione.Controllers
     [ApiController]
     public class UserController : ControllerBase
     {
+        public UserController(UserContext context, IConfiguration configuration)
+        {
+            _context = context;
+            _configuration = configuration;
+        }
+
         readonly Regex rgx = new("[^A-Za-z0-9]");
+        private readonly UserContext _context;
+        private IConfiguration _configuration;
 
         bool ContainsSpecialCharacter(string input)
         {
@@ -26,17 +34,7 @@ namespace webapione.Controllers
         {
             return password!.Length >= 8 && password.Length <= 32 && ContainsSpecialCharacter(password);
         }
-
-        private readonly UserContext _context;
-        private IConfiguration _configuration;
-
         
-        public UserController(UserContext context, IConfiguration configuration)
-        {
-            _context = context;
-            _configuration = configuration;
-        }
-
         static bool InvalidInput(string? input)
         {
             return input == "string" || input == "";
@@ -158,6 +156,9 @@ namespace webapione.Controllers
             try
             {
                 var result = _context.Users.Where(x => x.Id == id).Single();
+
+                if (result == null)
+                    return BadRequest("User not found");
 
                 return result;
             }
