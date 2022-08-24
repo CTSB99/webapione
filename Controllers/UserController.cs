@@ -164,7 +164,7 @@ namespace webapione.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                return BadRequest($"\n\n\n\n This is the ex.Message in API: {ex.Message}\n\n\n");
             }
         }
         [HttpGet("GetAllUsers")]
@@ -206,11 +206,16 @@ namespace webapione.Controllers
         {
             try
             {
-                var userToRemove = await _context.Users.Where(x => x.Id == id).ToListAsync();
-                _context.Users.Remove(userToRemove[0]);
+                var result = _context.Users.Where(x => x.Id == id).Single();
+                if(result == null)
+                {
+                    return BadRequest("User to delete not found");
+                }
+
+                _context.Users.Remove(result);
 
                 await _context.SaveChangesAsync();
-                return await ReadUser(id);
+                return Ok(result);
             }
             catch (Exception ex)
             {
