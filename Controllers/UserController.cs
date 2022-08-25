@@ -23,7 +23,7 @@ namespace webapione.Controllers
 
         readonly Regex rgx = new("[^A-Za-z0-9]");
         private readonly UserContext _context;
-        private IConfiguration _configuration;
+        private readonly IConfiguration _configuration;
 
         bool ContainsSpecialCharacter(string input)
         {
@@ -40,7 +40,7 @@ namespace webapione.Controllers
             return input == "string" || input == "";
         }
 
-        public static User user = new User();
+        private readonly static User user = new();
 
         //funktioniert aber sieht scheiße aus, aufklappen auf eigene gefahr
 
@@ -82,7 +82,7 @@ namespace webapione.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<ActionResult<string>> Login(UserDto request)
+        public ActionResult<string> Login(UserDto request)
         {
             try
             {
@@ -106,37 +106,32 @@ namespace webapione.Controllers
             {
                 return BadRequest(ex.Message);
             }
-
         }
 
-        private void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
+        private static void CreatePasswordHash(string? password, out byte[] passwordHash, out byte[] passwordSalt)
         {
-            using (var hmac = new HMACSHA512())
-            {
-                passwordSalt = hmac.Key;
-                passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
-            }
+            using var hmac = new HMACSHA512();
+            passwordSalt = hmac.Key;
+            passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password!));
         }
 
-        private bool VerifyPasswordHash(string password, byte[] passwordHash, byte[] passwordSalt)
+        private static bool VerifyPasswordHash(string? password, byte[]? passwordHash, byte[]? passwordSalt)
         {
-            using (var hmac = new HMACSHA512(passwordSalt))
-            {
-                var computecHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
-                return computecHash.SequenceEqual(passwordHash);
-            }
+            using var hmac = new HMACSHA512(passwordSalt!);
+            var computecHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password!));
+            return computecHash.SequenceEqual(passwordHash!);
         }
 
         private string CreateToken(User user)
         {
             List<Claim> claims = new()
             {
-                new Claim(ClaimTypes.Name, user.UserName),
-                new Claim(ClaimTypes.GivenName, $"{user.FirstName} {user.LastName}")
+                new Claim(ClaimTypes.Name, user.UserName!),
+                new Claim(ClaimTypes.GivenName, $"{user.FirstName} {user.LastName}"),
             };
 
             var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(
-                _configuration.GetSection("AppSettings:Token").Value));
+                _configuration.GetSection("AppSettings:Token").Value!));
 
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
 
@@ -151,7 +146,7 @@ namespace webapione.Controllers
         }
 
         [HttpGet("ReadUser")]
-        public async Task<ActionResult<User>> ReadUser(int id)
+        public ActionResult<User> ReadUser(int id)
         {
             try
             {
@@ -176,7 +171,7 @@ namespace webapione.Controllers
         }
 
         [HttpPut("UpdateUser")]
-        public async Task<ActionResult<User>> UpdateUser(User user)
+        public async Task<ActionResult<User>> UpdateUser(UserDto user)
         {
             try
             {
@@ -192,8 +187,8 @@ namespace webapione.Controllers
 
                 _context.Update(result);
                 await _context.SaveChangesAsync();
-
-                return await ReadUser(result.Id);
+                
+                return ReadUser(result.Id);
             }
             catch (Exception ex)
             {
