@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -78,7 +79,6 @@ namespace webapione.Controllers
             {
                 return BadRequest(ex.Message + "Bad Request weil lol");
             }
-
         }
 
         [HttpPost("login")]
@@ -89,14 +89,10 @@ namespace webapione.Controllers
                 var searchedUser = _context.Users.Where(x => x.UserName == request.UserName).Single();
 
                 if (searchedUser.UserName != request.UserName || searchedUser == null)
-                {
                     return BadRequest("User not found.");
-                }
 
                 if(!VerifyPasswordHash(request.Password, searchedUser.PasswordHash, searchedUser.PasswordSalt))
-                {
                     return BadRequest("Wrong Password.");
-                }
                 
                 string token = CreateToken(searchedUser);
 
@@ -128,6 +124,7 @@ namespace webapione.Controllers
             {
                 new Claim(ClaimTypes.Name, user.UserName!),
                 new Claim(ClaimTypes.GivenName, $"{user.FirstName} {user.LastName}"),
+                new Claim(ClaimTypes.Role, "Admin"),
             };
 
             var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(
@@ -162,7 +159,8 @@ namespace webapione.Controllers
                 return BadRequest($"\n\n\n\n This is the ex.Message in API: {ex.Message}\n\n\n");
             }
         }
-        [HttpGet("GetAllUsers")]
+
+        [HttpGet("GetAllUsers"), Authorize(Roles = "Admin")]
         public async Task<ActionResult<List<User>>> GetAllUsers()
         {
             var result = await _context.Users.ToListAsync();
@@ -203,9 +201,7 @@ namespace webapione.Controllers
             {
                 var result = _context.Users.Where(x => x.Id == id).Single();
                 if(result == null)
-                {
                     return BadRequest("User to delete not found");
-                }
 
                 _context.Users.Remove(result);
 
