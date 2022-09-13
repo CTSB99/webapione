@@ -160,8 +160,16 @@ namespace webapione.Controllers
             }
         }
 
-        [HttpGet("GetAllUsers"), Authorize(Roles = "Admin")]
+        [HttpGet("GetAllUsers")]
         public async Task<ActionResult<List<User>>> GetAllUsers()
+        {
+            var result = await _context.Users.ToListAsync();
+            Console.WriteLine(result);
+            return Ok(result);
+        }
+
+        [HttpGet("GetAllUsersAuth"), Authorize(Roles = "Admin")]
+        public async Task<ActionResult<List<User>>> GetAllUsersAuth()
         {
             var result = await _context.Users.ToListAsync();
             Console.WriteLine(result);
