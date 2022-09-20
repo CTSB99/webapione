@@ -33,7 +33,8 @@ namespace webapione.Controllers
 
         bool ValidPassword(string? password)
         {
-            return password!.Length >= 8 && password.Length <= 32 && ContainsSpecialCharacter(password);
+            return true;
+            // return password!.Length >= 8 && password.Length <= 32 && ContainsSpecialCharacter(password);
         }
         
         static bool InvalidInput(string? input)
@@ -81,17 +82,17 @@ namespace webapione.Controllers
             }
         }
 
-        [HttpPost("login")]
-        public ActionResult<string> Login(UserDto request)
+        [HttpGet("login")]
+        public async Task<ActionResult<string>> Login(string username, string password)
         {
             try
             {
-                var searchedUser = _context.Users.Where(x => x.UserName == request.UserName).Single();
+                var searchedUser = await _context.Users.Where(x => x.UserName == username).SingleAsync();
 
-                if (searchedUser.UserName != request.UserName || searchedUser == null)
+                if (searchedUser.UserName != username || searchedUser == null)
                     return BadRequest("User not found.");
 
-                if(!VerifyPasswordHash(request.Password, searchedUser.PasswordHash, searchedUser.PasswordSalt))
+                if(!VerifyPasswordHash(password, searchedUser.PasswordHash, searchedUser.PasswordSalt))
                     return BadRequest("Wrong Password.");
                 
                 string token = CreateToken(searchedUser);
